@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 import yaml
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "config", "settings.yaml")

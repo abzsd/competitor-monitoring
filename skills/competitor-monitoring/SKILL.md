@@ -36,6 +36,14 @@ This system includes the following agentic behaviors:
 
 All scripts are in `{baseDir}/scripts/`. Run them with `~/miniconda3/bin/python3` (required for MongoDB Atlas TLS support).
 
+**IMPORTANT: Always use full absolute paths when running scripts.** Example:
+```
+~/miniconda3/bin/python3 {baseDir}/scripts/manage_sources.py list
+~/miniconda3/bin/python3 {baseDir}/scripts/scrape.py http://localhost:8888/pricing --source-id <id>
+~/miniconda3/bin/python3 {baseDir}/scripts/detect_changes.py --all
+```
+Never use `cd` + relative paths. Always pass the full path to the script.
+
 | Script | Purpose |
 |--------|---------|
 | `manage_sources.py seed` | Seed competitors and sources from config into MongoDB |

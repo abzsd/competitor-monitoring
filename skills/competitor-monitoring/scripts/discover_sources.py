@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from urllib.parse import urljoin, urlparse
@@ -25,6 +26,7 @@ from xml.etree import ElementTree
 import feedparser
 import requests
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 from models import DiscoveredSource, DiscoveryMethod, PageType
 

@@ -16,12 +16,14 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
 
 from deepdiff import DeepDiff
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 from models import ChangeType, Severity
 

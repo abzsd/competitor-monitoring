@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 import llm
 from strategic_reasoning import analyze_market_trends

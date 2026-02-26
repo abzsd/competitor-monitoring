@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from difflib import unified_diff
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import llm
 
 

@@ -25,6 +25,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
 from detect_changes import detect_for_source, format_change_for_insights
 from discover_sources import discover_sources
