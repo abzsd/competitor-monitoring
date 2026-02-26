@@ -90,6 +90,10 @@ def alerts() -> Collection:
     return get_db()["alerts"]
 
 
+def activity_log() -> Collection:
+    return get_db()["activity_log"]
+
+
 # ---------------------------------------------------------------------------
 # Index setup (idempotent — safe to call on every startup)
 # ---------------------------------------------------------------------------

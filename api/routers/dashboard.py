@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from pymongo import DESCENDING
 
 import db
+from api.routers.changes import _humanize_summary
 from api.schemas import AlertOut, ChangeOut, CompetitorActivity, DashboardStats
 
 router = APIRouter(tags=["dashboard"])
@@ -18,6 +19,7 @@ def _enrich_change(doc: dict) -> dict:
     doc["competitor_name"] = comp["name"] if comp else "Unknown"
     src = db.get_source_by_id(doc.get("source_id", ""))
     doc["source_url"] = src["url"] if src else ""
+    doc["summary"] = _humanize_summary(doc)
     return doc
 
 
@@ -56,10 +58,10 @@ def get_dashboard():
     ])
     changes_by_type = {r["_id"]: r["count"] for r in type_agg if r["_id"]}
 
-    # Recent changes (last 10)
+    # Recent changes (last 10) — include structured_diff for humanized summaries
     recent_changes_raw = list(
         db.changes()
-        .find({}, {"text_diff": 0, "structured_diff": 0})
+        .find({}, {"text_diff": 0})
         .sort("detected_at", DESCENDING)
         .limit(10)
     )

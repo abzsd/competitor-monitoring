@@ -8,6 +8,7 @@ import type {
   Partnership,
   DashboardStats,
   PaginatedResponse,
+  ActivityLogEntry,
 } from '../types';
 
 const api = axios.create({
@@ -74,4 +75,8 @@ export const getPartnerships = (params?: Record<string, string>) =>
 
 // Scan
 export const triggerScan = () =>
-  api.post<{ status: string; sources_scraped: number; changes_found: number; errors: string[] }>('/scan', {}, { timeout: 120000 }).then(r => r.data);
+  api.post<{ status: string; scan_id: string; sources_scraped: number; changes_found: number; errors: string[] }>('/scan', {}, { timeout: 120000 }).then(r => r.data);
+
+// Activity Log
+export const getActivity = (limit = 30) =>
+  api.get<ActivityLogEntry[]>('/activity', { params: { limit } }).then(r => r.data);

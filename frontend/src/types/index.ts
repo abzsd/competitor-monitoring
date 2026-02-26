@@ -120,6 +120,15 @@ export interface DashboardStats {
   competitor_activity: CompetitorActivity[];
 }
 
+export interface ActivityLogEntry {
+  _id: string;
+  scan_id: string;
+  event: string;
+  detail: string;
+  status: 'info' | 'success' | 'warning' | 'error';
+  timestamp: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
