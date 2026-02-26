@@ -208,17 +208,71 @@ def compute_structured_diff(before_data: dict, after_data: dict) -> dict:
     return result
 
 
-def generate_summary(change_type: ChangeType, text_diff: str, source_doc: dict) -> str:
-    """Generate a brief human-readable summary of the change."""
-    url = source_doc.get("url", "")
+def generate_summary(change_type: ChangeType, text_diff: str, source_doc: dict, structured_diff: dict | None = None) -> str:
+    """Generate a human-readable summary a non-technical person can understand."""
     page_type = source_doc.get("page_type", "page")
+    diff_lines = text_diff.splitlines()
+    added_lines = [l[1:].strip() for l in diff_lines if l.startswith("+") and not l.startswith("+++") and l[1:].strip()]
+    removed_lines = [l[1:].strip() for l in diff_lines if l.startswith("-") and not l.startswith("---") and l[1:].strip()]
 
-    # Count added/removed lines
-    added = sum(1 for line in text_diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
-    removed = sum(1 for line in text_diff.splitlines() if line.startswith("-") and not line.startswith("---"))
+    # Extract specific value changes from structured_diff
+    highlights = []
+    if structured_diff and structured_diff.get("changed"):
+        for item in structured_diff["changed"][:5]:
+            old_v = str(item.get("old_value", ""))
+            new_v = str(item.get("new_value", ""))
+            path = str(item.get("path", ""))
+            parts = [p.strip("'\"") for p in re.findall(r"\['([^']+)'\]", path)]
+            field = " > ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
+            if old_v and new_v and field:
+                highlights.append(f"{field}: {old_v} → {new_v}")
 
-    type_label = change_type.value.replace("_", " ").title()
-    return f"{type_label} detected on {page_type} page ({url}): +{added}/-{removed} lines changed"
+    if structured_diff and structured_diff.get("added"):
+        for item in structured_diff["added"][:3]:
+            val = str(item.get("value", ""))[:80]
+            if val:
+                highlights.append(f"New: {val}")
+
+    # Build summary based on change type
+    if change_type == ChangeType.PRICING_CHANGE:
+        if highlights:
+            return f"Pricing updated — {'; '.join(highlights[:3])}"
+        prices_old = re.findall(r"\$[\d,.]+", " ".join(removed_lines))
+        prices_new = re.findall(r"\$[\d,.]+", " ".join(added_lines))
+        if prices_old and prices_new:
+            return f"Pricing changed from {', '.join(prices_old[:3])} to {', '.join(prices_new[:3])}"
+        return f"Pricing page updated with {len(added_lines)} changes"
+
+    if change_type == ChangeType.PRODUCT_UPDATE:
+        key = [l for l in added_lines if any(kw in l.lower() for kw in ["feature", "introducing", "new", "launch", "now", "support"])]
+        if key:
+            return f"Product update — {key[0][:120]}"
+        if highlights:
+            return f"Product update — {'; '.join(highlights[:2])}"
+        return f"Product page updated with {len(added_lines)} additions"
+
+    if change_type == ChangeType.PARTNERSHIP_NEW:
+        partners = [l for l in added_lines if any(kw in l.lower() for kw in ["partner", "integration", "collaborat", "works with", "powered by"])]
+        if partners:
+            return f"New partnership — {partners[0][:120]}"
+        return f"Partnership page updated with {len(added_lines)} new entries"
+
+    if change_type == ChangeType.TECH_STACK_CHANGE:
+        if highlights:
+            return f"Tech stack change — {'; '.join(highlights[:3])}"
+        return f"Tech stack updated"
+
+    if change_type == ChangeType.PAGE_ADDED:
+        return f"New {page_type} page discovered"
+
+    if change_type == ChangeType.PAGE_REMOVED:
+        return f"{page_type.title()} page removed"
+
+    # Generic content update
+    interesting = [l for l in added_lines if len(l) > 20 and not l.startswith(("<", "{", "//"))]
+    if interesting:
+        return f"Content updated — {interesting[0][:120]}"
+    return f"{page_type.title()} page updated with {len(added_lines)} changes"
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +314,7 @@ def detect_for_source(source_doc: dict) -> dict | None:
     # Classify
     change_type = classify_change_type(source_doc, text_diff)
     severity = classify_severity(change_type, text_diff, before_text, after_text, structured_diff)
-    summary = generate_summary(change_type, text_diff, source_doc)
+    summary = generate_summary(change_type, text_diff, source_doc, structured_diff)
 
     # Build change document
     now = datetime.now(timezone.utc)

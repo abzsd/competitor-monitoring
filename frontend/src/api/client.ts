@@ -71,3 +71,7 @@ export const getAlerts = (params?: Record<string, string | number>) =>
 // Partnerships
 export const getPartnerships = (params?: Record<string, string>) =>
   api.get<Partnership[]>('/partnerships', { params }).then(r => r.data);
+
+// Scan
+export const triggerScan = () =>
+  api.post<{ status: string; sources_scraped: number; changes_found: number; errors: string[] }>('/scan', {}, { timeout: 120000 }).then(r => r.data);

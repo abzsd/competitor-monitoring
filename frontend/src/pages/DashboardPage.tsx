@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { DashboardStats } from '../types';
-import { getDashboard } from '../api/client';
+import { getDashboard, triggerScan } from '../api/client';
 import StatCard from '../components/StatCard';
 import ChangeCard from '../components/ChangeCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -9,12 +9,28 @@ import LoadingSpinner from '../components/LoadingSpinner';
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
 
   const load = () => {
     getDashboard()
       .then(setStats)
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  const handleScan = async () => {
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const result = await triggerScan();
+      setScanResult(`Scanned ${result.sources_scraped} sources, found ${result.changes_found} new change(s)`);
+      load(); // Refresh dashboard
+    } catch {
+      setScanResult('Scan failed — check server logs');
+    } finally {
+      setScanning(false);
+    }
   };
 
   useEffect(() => {
@@ -28,8 +44,31 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-      <p className="text-sm text-slate-500 mt-1">Live overview of your competitive intelligence pipeline</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">Live overview of your competitive intelligence pipeline</p>
+        </div>
+        <button
+          onClick={handleScan}
+          disabled={scanning}
+          className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+        >
+          {scanning ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Scanning...
+            </>
+          ) : (
+            'Run Scan Now'
+          )}
+        </button>
+      </div>
+      {scanResult && (
+        <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700">
+          {scanResult}
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4 mt-6">
