@@ -183,9 +183,10 @@ class MockCompetitorHandler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description="Mock competitor website server")
     parser.add_argument("--port", type=int, default=8888, help="Port to serve on (default: 8888)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     args = parser.parse_args()
 
-    server = HTTPServer(("127.0.0.1", args.port), MockCompetitorHandler)
+    server = HTTPServer((args.host, args.port), MockCompetitorHandler)
     print(f"Mock competitor 'TestRival' running at http://localhost:{args.port}")
     print(f"  Serving version: {CURRENT_VERSION}")
     print(f"  Pages: {', '.join(PAGES.keys())}")
