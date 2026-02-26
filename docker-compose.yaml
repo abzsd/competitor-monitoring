@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: competitor-monitoring-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      # No auth for local dev — add MONGO_INITDB_ROOT_USERNAME/PASSWORD for production
+      MONGO_INITDB_DATABASE: competitor_monitoring
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

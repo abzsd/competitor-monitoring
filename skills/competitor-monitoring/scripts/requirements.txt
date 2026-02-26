@@ -1,0 +1,11 @@
+pymongo>=4.8
+pydantic>=2.6
+beautifulsoup4>=4.12
+lxml>=5.1
+deepdiff>=7.0
+xxhash>=3.4
+requests>=2.31
+python-dotenv>=1.0
+pyyaml>=6.0
+feedparser>=6.0
+jinja2>=3.1

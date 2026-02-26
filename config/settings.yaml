@@ -1,0 +1,83 @@
+# Competitor Monitoring Configuration
+# Edit this file to add/modify competitors and their monitored sources.
+
+competitors:
+  # Test competitor — local mock server (run: python3 test-site/server.py)
+  - name: "TestRival"
+    slug: "testrival"
+    domain: "localhost:8888"
+    industry: "project-management"
+    description: "Mock competitor for testing the monitoring pipeline"
+    tags: ["pm", "saas", "ai"]
+    sources:
+      - url: "http://localhost:8888/pricing"
+        page_type: "pricing"
+        scrape_method: "static"
+        schedule_group: "hourly"
+      - url: "http://localhost:8888/product"
+        page_type: "product"
+        scrape_method: "static"
+        schedule_group: "daily"
+      - url: "http://localhost:8888/partners"
+        page_type: "partnerships"
+        scrape_method: "static"
+        schedule_group: "daily"
+      - url: "http://localhost:8888/blog"
+        page_type: "blog"
+        scrape_method: "static"
+        schedule_group: "daily"
+
+  # Example competitor — replace with your actual competitors
+  # - name: "Acme Corp"
+  #   slug: "acme-corp"
+  #   domain: "acmecorp.com"
+  #   industry: "developer-tools"
+  #   description: "Primary competitor in API tooling space"
+  #   tags: ["api", "developer-tools", "saas"]
+  #   sources:
+  #     - url: "https://acmecorp.com/pricing"
+  #       page_type: "pricing"
+  #       scrape_method: "dynamic"
+  #       schedule_group: "hourly"
+  #     - url: "https://acmecorp.com/product"
+  #       page_type: "product"
+  #       scrape_method: "static"
+  #       schedule_group: "daily"
+
+# Detection settings
+detection:
+  # Ignore changes smaller than this ratio of total content
+  min_text_change_ratio: 0.01
+  severity_rules:
+    # Price changes above this threshold are CRITICAL
+    critical_price_change_threshold: 0.20
+  partnership_keywords:
+    - "partnership"
+    - "integration"
+    - "collaboration"
+    - "powered by"
+    - "works with"
+    - "acquisition"
+    - "acquired"
+
+# Alert settings (Slack only)
+alerts:
+  channel: "slack"
+  # Minimum severity to trigger alerts (low, medium, high, critical)
+  min_severity: "medium"
+  # Max alerts per hour to prevent spam
+  max_per_hour: 10
+
+# Source discovery settings
+discovery:
+  max_crawl_depth: 2
+  relevant_paths:
+    - "/pricing"
+    - "/plans"
+    - "/product"
+    - "/features"
+    - "/partners"
+    - "/integrations"
+    - "/blog"
+    - "/changelog"
+    - "/about"
