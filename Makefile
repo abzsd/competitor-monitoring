@@ -49,3 +49,18 @@ partnerships: ## Detect partnerships across all competitors
 
 cron-print: ## Print OpenClaw cron job commands
 	$(PYTHON) $(SCRIPTS_DIR)/setup_cron.py --print
+
+# Dashboard
+api-dev: ## Start FastAPI dev server (port 8000)
+	$(PYTHON) -m uvicorn api.main:app --reload --port 8000
+
+frontend-install: ## Install frontend dependencies
+	cd frontend && npm install
+
+frontend-dev: ## Start React dev server (port 5173)
+	cd frontend && npm run dev
+
+frontend-build: ## Build React for production
+	cd frontend && npm run build
+
+dashboard: frontend-build api-dev ## Build frontend + start API server
