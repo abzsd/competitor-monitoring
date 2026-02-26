@@ -2,16 +2,20 @@
 # ============================================================================
 #  Competitor Monitoring — Live Demo (via OpenClaw)
 #
-#  This script uses OpenClaw to run the competitor-monitoring skill,
-#  which scrapes competitor sites, detects changes, generates AI insights,
-#  and sends rich Slack alerts.
-#
 #  Usage:
-#    ./demo.sh                  # Full pipeline via OpenClaw → Slack alerts
-#    ./demo.sh --dry-run        # Detect + analyze but don't send to Slack
-#    ./demo.sh --baseline       # Scrape baseline (run BEFORE making changes)
+#    ./demo.sh --watch             # RECOMMENDED: Start autonomous monitoring
+#                                  #   OpenClaw polls every 30s, auto-detects
+#                                  #   changes, sends Slack alerts. Just switch
+#                                  #   the test site version and watch it work.
+#
+#    ./demo.sh --baseline          # Scrape baseline (run once before --watch)
+#    ./demo.sh                     # One-shot: run full pipeline once
+#    ./demo.sh --dry-run           # One-shot without sending Slack
 # ============================================================================
 set -e
+
+PYTHON="${HOME}/miniconda3/bin/python3"
+SCRIPTS_DIR="skills/competitor-monitoring/scripts"
 
 BOLD="\033[1m"
 GREEN="\033[32m"
@@ -19,6 +23,7 @@ CYAN="\033[36m"
 YELLOW="\033[33m"
 RED="\033[31m"
 MAGENTA="\033[35m"
+DIM="\033[2m"
 RESET="\033[0m"
 
 divider() {
@@ -33,10 +38,13 @@ timestamp() {
 
 DRY_RUN=""
 BASELINE=""
+WATCH=""
+INTERVAL=30
 for arg in "$@"; do
     case "$arg" in
         --dry-run)  DRY_RUN="--dry-run" ;;
         --baseline) BASELINE="yes" ;;
+        --watch)    WATCH="yes" ;;
     esac
 done
 
@@ -92,7 +100,36 @@ fi
 
 divider
 
-# ── Baseline mode: just scrape, no detection ────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
+#  WATCH MODE — Autonomous background monitoring
+# ════════════════════════════════════════════════════════════════════════════
+if [ "$WATCH" = "yes" ]; then
+    echo -e "${BOLD}${MAGENTA}  🦞  AUTONOMOUS MONITORING MODE${RESET}"
+    echo ""
+    echo -e "  OpenClaw is now monitoring all competitor sources."
+    echo -e "  Polling every ${BOLD}${INTERVAL}s${RESET} — changes trigger Slack alerts automatically."
+    echo ""
+    echo -e "  ${DIM}To trigger a change for the demo:${RESET}"
+    echo -e "  ${DIM}  Open a new terminal and run:${RESET}"
+    echo -e "  ${DIM}  ${CYAN}curl http://localhost:8888/switch/v2${RESET}"
+    echo ""
+    echo -e "  ${DIM}Press Ctrl+C to stop monitoring.${RESET}"
+
+    divider
+
+    # Run the watcher — this IS the OpenClaw skill's autonomous agent.
+    # It loops forever: scrape → detect → generate insights → send Slack alerts.
+    # The watcher.py is the core of the competitor-monitoring skill.
+    exec $PYTHON "$SCRIPTS_DIR/watcher.py" \
+        --interval "$INTERVAL" \
+        --no-discover \
+        $DRY_RUN \
+        2>&1
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+#  BASELINE MODE — Scrape current state, no detection
+# ════════════════════════════════════════════════════════════════════════════
 if [ "$BASELINE" = "yes" ]; then
     echo -e "${BOLD}[$(timestamp)] BASELINE MODE — Scraping current state (${TEST_VERSION})...${RESET}"
     echo ""
@@ -106,21 +143,24 @@ if [ "$BASELINE" = "yes" ]; then
     divider
     echo -e "${BOLD}[$(timestamp)] ✅ Baseline captured!${RESET}"
     echo ""
-    echo -e "  ${BOLD}Next steps:${RESET}"
-    echo -e "    1. Switch the test site to v2:  ${CYAN}curl http://localhost:8888/switch/v2${RESET}"
-    echo -e "    2. Run detection:               ${CYAN}./demo.sh${RESET}"
+    echo -e "  ${BOLD}Next steps for the demo:${RESET}"
+    echo ""
+    echo -e "    1. Start autonomous monitoring:  ${CYAN}./demo.sh --watch${RESET}"
+    echo -e "    2. In another terminal, switch:  ${CYAN}curl http://localhost:8888/switch/v2${RESET}"
+    echo -e "    3. Wait ~30s — Slack alert arrives automatically"
     echo ""
     exit 0
 fi
 
-# ── Full pipeline via OpenClaw ──────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
+#  ONE-SHOT MODE — Single pipeline run via OpenClaw
+# ════════════════════════════════════════════════════════════════════════════
 echo -e "${BOLD}[$(timestamp)] Launching OpenClaw agent...${RESET}"
 echo ""
 echo -e "  ${MAGENTA}🦞 OpenClaw is running the competitor-monitoring skill${RESET}"
 echo -e "  ${MAGENTA}   Pipeline: Scrape → Detect Changes → AI Insights → Slack Alerts${RESET}"
 echo ""
 
-# Build the OpenClaw message based on flags
 if [ -n "$DRY_RUN" ]; then
     OPENCLAW_MSG="Run the competitor-monitoring skill — FULL PIPELINE (DRY RUN):
 1) List all active sources with manage_sources.py list.
@@ -146,7 +186,6 @@ openclaw agent --local --session-id "competitor-demo" --message "$OPENCLAW_MSG" 
 
 divider
 
-# ── Summary ─────────────────────────────────────────────────────────────────
 echo -e "${BOLD}[$(timestamp)] ✅ Demo complete!${RESET}"
 echo ""
 echo -e "  ${BOLD}What OpenClaw did:${RESET}"
