@@ -21,6 +21,7 @@ def _slugify(name: str) -> str:
 
 
 def _enrich(doc: dict) -> dict:
+    doc["_id"] = str(doc["_id"])  # ensure ObjectId → str
     cid = doc["_id"]
     doc["source_count"] = len(db.get_active_sources(competitor_id=cid))
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
