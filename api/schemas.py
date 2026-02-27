@@ -175,6 +175,27 @@ class PartnershipOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# News Items
+# ---------------------------------------------------------------------------
+
+class NewsItemOut(BaseModel):
+    id: str = Field(alias="_id")
+    competitor_id: str = ""
+    competitor_name: str = ""
+    url: str = ""
+    title: str = ""
+    source_domain: str = ""
+    content_snippet: str = ""
+    search_category: str = ""
+    relevance_score: float = 0.0
+    discovered_at: Optional[datetime] = None
+    published_date: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"populate_by_name": True}
+
+
+# ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
 
@@ -196,6 +217,7 @@ class DashboardStats(BaseModel):
     changes_by_severity: dict[str, int] = Field(default_factory=dict)
     changes_by_type: dict[str, int] = Field(default_factory=dict)
     alerts_last_24h: int = 0
+    news_items_7d: int = 0
     recent_changes: list[ChangeOut] = Field(default_factory=list)
     recent_alerts: list[AlertOut] = Field(default_factory=list)
     competitor_activity: list[CompetitorActivity] = Field(default_factory=list)

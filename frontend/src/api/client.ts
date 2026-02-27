@@ -6,6 +6,7 @@ import type {
   Analysis,
   Alert,
   Partnership,
+  NewsItem,
   DashboardStats,
   PaginatedResponse,
   ActivityLogEntry,
@@ -72,6 +73,10 @@ export const getAlerts = (params?: Record<string, string | number>) =>
 // Partnerships
 export const getPartnerships = (params?: Record<string, string>) =>
   api.get<Partnership[]>('/partnerships', { params }).then(r => r.data);
+
+// News
+export const getNews = (params?: Record<string, string | number>) =>
+  api.get<NewsItem[]>('/news', { params }).then(r => r.data);
 
 // Scan
 export const triggerScan = () =>

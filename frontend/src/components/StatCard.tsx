@@ -2,7 +2,7 @@ interface Props {
   label: string;
   value: string | number;
   subtitle?: string;
-  color?: 'indigo' | 'green' | 'amber' | 'red' | 'slate';
+  color?: 'indigo' | 'green' | 'amber' | 'red' | 'slate' | 'blue';
 }
 
 const colors = {
@@ -11,6 +11,7 @@ const colors = {
   amber: 'bg-amber-50 text-amber-700 border-amber-200',
   red: 'bg-red-50 text-red-700 border-red-200',
   slate: 'bg-slate-50 text-slate-700 border-slate-200',
+  blue: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
 export default function StatCard({ label, value, subtitle, color = 'slate' }: Props) {

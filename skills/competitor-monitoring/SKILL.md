@@ -11,7 +11,7 @@ metadata:
     emoji: "🔍"
     requires:
       bins: ["python3"]
-      env: ["MONGODB_URI"]
+      env: ["MONGODB_URI", "TAVILY_API_KEY"]
 ---
 
 # Competitor Monitoring Skill
@@ -31,6 +31,9 @@ This system includes the following agentic behaviors:
 - **Dynamic Browser Scraping** — Uses headless Chrome via Selenium for JS-heavy pages
 - **Knowledge Base Updates** — Auto-maintains `references/competitor_kb.md` with learnings from each analysis
 - **LLM Sentiment Analysis** — Claude-enhanced article sentiment analysis (falls back to keyword scoring)
+- **Proactive News Search** — Tavily-powered web search finds competitor news, funding, and partnerships before they appear on websites
+- **Deep Investigation** — When major changes are detected, automatically researches broader context via web search and full article extraction
+- **Partnership Network Detection** — Discovers partnerships from news sources and press releases beyond just the competitor's own pages
 
 ## Available Scripts
 
@@ -58,6 +61,13 @@ Never use `cd` + relative paths. Always pass the full path to the script.
 | `detect_partnerships.py --all [--save]` | Detect partnerships across all competitors |
 | `detect_partnerships.py --competitor <slug> [--save]` | Detect partnerships for one competitor |
 | `detect_partnerships.py --scan-text "<text>" --competitor-id <id>` | Scan arbitrary text for partnerships |
+| `detect_partnerships.py --all --search-news --save` | Detect partnerships from snapshots + Tavily news search |
+| `news_search.py --competitor <slug>` | Search Tavily for recent competitor news |
+| `news_search.py --all [--days 14]` | Search news for all competitors (default: 7 days) |
+| `news_search.py --all --no-alert` | Search without sending Slack alerts |
+| `investigate.py --change-id <id>` | Deep investigation on a significant change |
+| `investigate.py --change-json '<json>'` | Investigate from inline change JSON |
+| `investigate.py --change-id <id> --no-extract` | Investigate without full article extraction (faster) |
 | `analyze_sentiment.py --all` | Analyze news sentiment for all competitors |
 | `analyze_sentiment.py --competitor <slug>` | Analyze news sentiment for one competitor |
 | `generate_report.py --weekly [--competitor <slug>] [--format json\|markdown\|html]` | Generate weekly report |
@@ -172,13 +182,42 @@ Partnership detection combines multiple signals:
 
 1. Run `detect_partnerships.py --all --save` to scan all competitor snapshots for partnership signals
 2. Check the `detect_changes.py` output for `change_type: partnership_new`
-3. Use `web_search` to search for: `"<competitor name>" partnership OR integration OR collaboration`
+3. Use the built-in news search mode: `detect_partnerships.py --all --search-news --save`
+   This searches Tavily for partnership/integration news and extracts partner names automatically.
+   News-discovered partnerships start at 0.5 confidence (lower than page-scraped partnerships).
 4. For news articles found, feed the text to: `detect_partnerships.py --scan-text "<text>" --competitor-id <id>`
 5. Review detected partnerships — the script assigns confidence scores:
    - 0.7+ = likely real, auto-saved with `--save`
    - 0.4-0.7 = possible, needs your review
    - Below 0.4 = filtered out
 6. For confirmed partnerships, also save an analysis: `save_analysis.py --type partnership_analysis`
+
+### 6b. Proactive News Search
+
+Search for recent competitor news proactively:
+
+1. Run `news_search.py --all` to search Tavily for funding, partnerships, product launches, and acquisitions
+2. Each result is scored for relevance (0-1) using LLM analysis
+3. Items with relevance >= 0.7 automatically trigger Slack alerts
+4. All items are saved to the `news_items` collection for historical tracking
+5. Use `--days 14` to widen the search window (default: 7 days)
+6. Use `--no-alert` during testing to suppress Slack messages
+7. For detected partnership news, feed relevant text to `detect_partnerships.py --scan-text`
+
+### 6c. Deep Investigation
+
+For significant (high/critical severity) changes, run a deep investigation:
+
+1. Run `investigate.py --change-id <id>` to research a specific change
+2. The script automatically:
+   - Extracts key entities, dollar amounts, and keywords from the change
+   - Searches Tavily for related news, press releases, and analyst coverage
+   - Extracts full content from the top 3 most relevant URLs
+   - Uses LLM to synthesize a comprehensive investigation report
+   - Saves the investigation to the `analyses` collection (type: "investigation")
+   - Marks the change as analyzed
+3. The output includes: what happened, why it matters, market context, recommended response
+4. Use `--no-extract` to skip full article extraction (faster but less context)
 
 ### 7. Market Sentiment & Performance
 

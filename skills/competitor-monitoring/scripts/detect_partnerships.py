@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Detect competitor partnerships from scraped content and news.
+"""Detect competitor partnerships from scraped content, news, and web search.
 
 Usage:
     python3 detect_partnerships.py --competitor <slug>   # Check one competitor
     python3 detect_partnerships.py --all                 # Check all competitors
     python3 detect_partnerships.py --scan-text "<text>" --competitor-id <id>
+    python3 detect_partnerships.py --all --search-news --save  # Include Tavily news search
 
 Combines:
     1. Keyword-based detection in scraped snapshot text
     2. Structured data extraction from partnership/integration pages
     3. Named entity co-occurrence near partnership signal words
+    4. Tavily web search for partnership news (with --search-news flag)
 
 Output:
     JSON array of detected partnership candidates.
@@ -23,6 +25,7 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db
@@ -282,6 +285,105 @@ def detect_from_text(text: str, competitor_id: str) -> list[dict]:
     return detected
 
 
+# ---------------------------------------------------------------------------
+# Tavily web search for partnership news
+# ---------------------------------------------------------------------------
+
+_tavily_client = None
+
+
+def _get_tavily():
+    global _tavily_client
+    if _tavily_client is None:
+        _env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
+        from dotenv import load_dotenv
+        load_dotenv(_env_path)
+        api_key = os.environ.get("TAVILY_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("TAVILY_API_KEY not set — cannot use --search-news")
+        from tavily import TavilyClient
+        _tavily_client = TavilyClient(api_key=api_key)
+    return _tavily_client
+
+
+def detect_from_news_search(competitor_doc: dict, days: int = 14) -> list[dict]:
+    """Search Tavily for partnership/integration news and extract partner names.
+
+    Returns list of partnership candidate dicts with detection_source="news_search"
+    and a lower base confidence of 0.5.
+    """
+    name = competitor_doc["name"]
+    competitor_id = competitor_doc["_id"]
+    tavily = _get_tavily()
+    detected = []
+    seen_urls: set[str] = set()
+
+    query = f'"{name}" partnership OR integration OR collaboration'
+
+    try:
+        response = tavily.search(
+            query=query,
+            search_depth="basic",
+            max_results=10,
+            days=days,
+        )
+    except Exception as e:
+        print(f"[detect_partnerships] Tavily error for {name}: {e}", file=sys.stderr)
+        return detected
+
+    for result in response.get("results", []):
+        url = result.get("url", "")
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+
+        content = f"{result.get('title', '')} {result.get('content', '')}"
+
+        if not PARTNERSHIP_PATTERN.search(content):
+            continue
+
+        candidates = extract_potential_entity_names(content, window=150)
+
+        name_groups: dict[str, list[dict]] = {}
+        for cand in candidates:
+            key = cand["name"].lower()
+            if key == name.lower() or key in name.lower():
+                continue
+            name_groups.setdefault(key, []).append(cand)
+
+        domain = urlparse(url).netloc.replace("www.", "")
+
+        for name_lower, occurrences in name_groups.items():
+            display_name = occurrences[0]["name"]
+
+            if db.partnership_exists(competitor_id, display_name):
+                continue
+
+            ptype = classify_partnership_type(occurrences[0]["context"])
+
+            base_confidence = 0.5
+            bonus = min(len(occurrences) * 0.05, 0.15)
+            confidence = min(base_confidence + bonus, 0.75)
+
+            if confidence < 0.4:
+                continue
+
+            detected.append({
+                "partner_name": display_name,
+                "partnership_type": ptype.value,
+                "source_url": url,
+                "source_domain": domain,
+                "snapshot_id": "",
+                "confidence": round(confidence, 2),
+                "context": occurrences[0]["context"][:300],
+                "status": PartnershipStatus.RUMORED.value,
+                "detection_source": "news_search",
+                "search_result_title": result.get("title", ""),
+            })
+
+    return detected
+
+
 def save_detected_partnerships(competitor_id: str, partnerships_list: list[dict]) -> int:
     """Save detected partnerships to MongoDB. Returns count saved."""
     saved = 0
@@ -324,6 +426,8 @@ def main():
     group.add_argument("--scan-text", help="Scan arbitrary text for partnerships")
     parser.add_argument("--competitor-id", help="Competitor ID (required with --scan-text)")
     parser.add_argument("--save", action="store_true", help="Auto-save to MongoDB")
+    parser.add_argument("--search-news", action="store_true",
+                        help="Also search Tavily for partnership news (requires TAVILY_API_KEY)")
     args = parser.parse_args()
 
     try:
@@ -341,6 +445,16 @@ def main():
                 print(json.dumps({"error": f"Competitor not found: {args.competitor}"}), file=sys.stderr)
                 sys.exit(1)
             all_detected = detect_from_snapshots(comp["_id"])
+
+            if args.search_news:
+                news_detected = detect_from_news_search(comp)
+                for d in news_detected:
+                    d["competitor_name"] = comp["name"]
+                    d["competitor_slug"] = comp["slug"]
+                all_detected.extend(news_detected)
+                print(f"News search found {len(news_detected)} additional candidates for {comp['name']}.",
+                      file=sys.stderr)
+
             if args.save:
                 saved = save_detected_partnerships(comp["_id"], all_detected)
                 print(f"Saved {saved} new partnerships.", file=sys.stderr)
@@ -348,6 +462,13 @@ def main():
         else:  # --all
             for comp in db.get_all_active_competitors():
                 detected = detect_from_snapshots(comp["_id"])
+
+                if args.search_news:
+                    news_detected = detect_from_news_search(comp)
+                    for d in news_detected:
+                        d["detection_source"] = "news_search"
+                    detected.extend(news_detected)
+
                 for d in detected:
                     d["competitor_name"] = comp["name"]
                     d["competitor_slug"] = comp["slug"]

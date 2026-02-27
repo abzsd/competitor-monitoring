@@ -76,8 +76,10 @@ def build_cron_jobs(
                 "5) Save each analysis using save_analysis.py. "
                 "6) Send alerts for medium+ severity changes via format_slack.py --send. "
                 "7) Run detect_partnerships.py --all --save. "
-                "8) Knowledge base is auto-updated by the watcher. "
-                "9) LLM-enhanced insights are generated automatically if ANTHROPIC_API_KEY is set."
+                "8) Run news_search.py --all to proactively search for competitor news via Tavily. "
+                "9) For any high/critical changes, run investigate.py --change-id <id> for deep investigation. "
+                "10) Knowledge base is auto-updated by the pipeline. "
+                "11) LLM-enhanced insights are generated automatically if OPENAI_API_KEY is set."
             ),
             "command": (
                 f'openclaw cron add --name "competitor-daily-monitor" '
@@ -90,7 +92,9 @@ def build_cron_jobs(
                 f'4) Save analyses with save_analysis.py. '
                 f'5) Alert on medium+ severity via format_slack.py --send. '
                 f'6) Run detect_partnerships.py --all --save. '
-                f'7) Update competitor knowledge base."'
+                f'7) Run news_search.py --all for proactive news search. '
+                f'8) For high/critical changes, run investigate.py --change-id <id>. '
+                f'9) Update competitor knowledge base."'
                 f'{delivery_args}'
             ),
         },
@@ -101,8 +105,8 @@ def build_cron_jobs(
             "message": (
                 "Run the competitor-monitoring skill — WEEKLY DISCOVERY: "
                 "1) For each competitor, run discover_sources.py with --save to find new pages. "
-                "2) Use web_search to find recent news about each competitor. "
-                "3) Run detect_partnerships.py --all --save. "
+                "2) Run news_search.py --all --days 7 for proactive competitor news search. "
+                "3) Run detect_partnerships.py --all --search-news --save for comprehensive partnership detection. "
                 "4) Run analyze_sentiment.py --all to gauge market sentiment. "
                 "5) Run strategic_reasoning.py --days 7 for cross-competitor market trends. "
                 "6) Generate the weekly report with generate_report.py --weekly --format markdown (includes executive summary). "
@@ -115,8 +119,8 @@ def build_cron_jobs(
                 f'--session isolated '
                 f'--message "Run the competitor-monitoring skill — WEEKLY DISCOVERY: '
                 f'1) Discover new sources for each competitor with discover_sources.py --save. '
-                f'2) Search for competitor news via web_search. '
-                f'3) Detect partnerships with detect_partnerships.py --all --save. '
+                f'2) Run news_search.py --all --days 7 for proactive news search. '
+                f'3) Detect partnerships with detect_partnerships.py --all --search-news --save. '
                 f'4) Analyze sentiment with analyze_sentiment.py --all. '
                 f'5) Generate weekly report with generate_report.py --weekly. '
                 f'6) Send report via format_slack.py --report --send and send_email.py. '

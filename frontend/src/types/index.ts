@@ -58,11 +58,23 @@ export interface Analysis {
   analysis_type: string;
   generated_at: string;
   content: {
-    summary: string;
-    impact_assessment: string;
-    actionable_insights: string[];
-    category: string;
-    confidence: number;
+    // Standard analysis fields
+    summary?: string;
+    impact_assessment?: string;
+    actionable_insights?: string[];
+    category?: string;
+    confidence?: number;
+    // Investigation report fields (from investigate.py)
+    what_happened?: string;
+    why_it_matters?: string;
+    market_context?: string;
+    recommended_response?: string;
+    key_facts?: string[];
+    sources_cited?: string[];
+    risk_level?: string;
+    // News search origin fields
+    search_queries?: string[];
+    articles_analyzed?: number;
   };
   created_at: string;
 }
@@ -105,6 +117,21 @@ export interface CompetitorActivity {
   change_count_7d: number;
 }
 
+export interface NewsItem {
+  _id: string;
+  competitor_id: string;
+  competitor_name: string;
+  url: string;
+  title: string;
+  source_domain: string;
+  content_snippet: string;
+  search_category: string;
+  relevance_score: number;
+  discovered_at: string;
+  published_date: string | null;
+  created_at: string;
+}
+
 export interface DashboardStats {
   total_competitors: number;
   total_sources: number;
@@ -115,6 +142,7 @@ export interface DashboardStats {
   changes_by_severity: Record<string, number>;
   changes_by_type: Record<string, number>;
   alerts_last_24h: number;
+  news_items_7d: number;
   recent_changes: Change[];
   recent_alerts: Alert[];
   competitor_activity: CompetitorActivity[];

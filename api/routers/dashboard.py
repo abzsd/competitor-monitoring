@@ -43,6 +43,7 @@ def get_dashboard():
     changes_7d = db.changes().count_documents({"detected_at": {"$gte": cutoff_7d}})
     changes_30d = db.changes().count_documents({"detected_at": {"$gte": cutoff_30d}})
     alerts_24h = db.alerts().count_documents({"sent_at": {"$gte": cutoff_24h}})
+    news_7d = db.news_items().count_documents({"discovered_at": {"$gte": cutoff_7d}})
 
     # Changes by severity
     sev_agg = db.changes().aggregate([
@@ -100,6 +101,7 @@ def get_dashboard():
         changes_by_severity=changes_by_severity,
         changes_by_type=changes_by_type,
         alerts_last_24h=alerts_24h,
+        news_items_7d=news_7d,
         recent_changes=recent_changes,
         recent_alerts=recent_alerts,
         competitor_activity=activity,

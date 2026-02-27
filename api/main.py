@@ -17,7 +17,7 @@ sys.path.insert(0, SCRIPTS_DIR)
 
 import db  # noqa: E402
 
-from api.routers import alerts, analyses, changes, competitors, dashboard, partnerships, scan, sources  # noqa: E402
+from api.routers import alerts, analyses, changes, competitors, dashboard, news, partnerships, scan, sources  # noqa: E402
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(changes.router, prefix="/api")
 app.include_router(analyses.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
 app.include_router(partnerships.router, prefix="/api")
+app.include_router(news.router, prefix="/api")
 app.include_router(scan.router, prefix="/api")
 
 # Serve React build in production (if frontend/dist exists)

@@ -94,6 +94,10 @@ def activity_log() -> Collection:
     return get_db()["activity_log"]
 
 
+def news_items() -> Collection:
+    return get_db()["news_items"]
+
+
 # ---------------------------------------------------------------------------
 # Index setup (idempotent — safe to call on every startup)
 # ---------------------------------------------------------------------------
@@ -139,6 +143,12 @@ def ensure_indexes():
     alerts().create_index([("competitor_id", ASCENDING), ("sent_at", DESCENDING)])
     alerts().create_index("status")
     alerts().create_index("analysis_id")
+
+    # News Items
+    news_items().create_index("url", unique=True)
+    news_items().create_index([("competitor_id", ASCENDING), ("discovered_at", DESCENDING)])
+    news_items().create_index([("relevance_score", DESCENDING)])
+    news_items().create_index("search_category")
 
 
 # ---------------------------------------------------------------------------

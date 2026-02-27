@@ -104,10 +104,11 @@ export default function DashboardPage() {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-5 gap-4 mt-6">
         <StatCard label="Competitors" value={stats.total_competitors} color="indigo" />
         <StatCard label="Active Sources" value={stats.active_sources} color="green" subtitle={stats.failing_sources > 0 ? `${stats.failing_sources} failing` : undefined} />
         <StatCard label="Changes (7d)" value={stats.total_changes_7d} color="amber" subtitle={`${stats.total_changes_30d} in 30d`} />
+        <StatCard label="News Intel (7d)" value={stats.news_items_7d} color="blue" />
         <StatCard label="Alerts (24h)" value={stats.alerts_last_24h} color="red" />
       </div>
 
