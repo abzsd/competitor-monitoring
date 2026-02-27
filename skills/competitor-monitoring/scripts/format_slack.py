@@ -327,10 +327,29 @@ def format_change_alert_rich(change: dict, insights: dict) -> dict:
             actions_text += f"\n    {p_emoji}  *[{priority.upper()}]*  {a.get('action', '')}{team_str}"
         blocks.append(_section_block(actions_text))
 
+    # ━━━ NEWS & MARKET INTELLIGENCE ━━━
+    news_items = insights.get("news_context", [])
+    if news_items:
+        blocks.append(_divider_block())
+        news_text = ":newspaper:  *Market Intelligence (from web search)*\n"
+        for n in news_items[:4]:
+            source = n.get("source", "")
+            title = n.get("title", "")[:100]
+            url = n.get("url", "")
+            snippet = n.get("snippet", "")[:120]
+            if url and title:
+                news_text += f"\n>  :link:  <{url}|{title}>"
+                if source:
+                    news_text += f"  _({source})_"
+                if snippet:
+                    news_text += f"\n>  {snippet}"
+                news_text += "\n"
+        blocks.append(_section_block(news_text))
+
     # ━━━ FOOTER ━━━
     blocks.append(_section_block(" "))
     blocks.append(_divider_block())
-    blocks.append(_context_block([":robot_face:  Competitor Monitoring Agent  •  Deep Analysis  •  Powered by AI"]))
+    blocks.append(_context_block([":robot_face:  Competitor Monitoring Agent  •  Deep Analysis  •  Powered by AI + Web Search"]))
 
     # Slack has a 50-block limit — trim if needed
     if len(blocks) > 50:

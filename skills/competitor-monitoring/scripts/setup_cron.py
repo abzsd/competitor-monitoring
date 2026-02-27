@@ -46,9 +46,11 @@ def build_cron_jobs(
                 "Run the competitor-monitoring skill: "
                 "1) List all sources with schedule_group=hourly. "
                 "2) Scrape each one using scrape.py. "
-                "3) Run detect_changes.py --all to find changes. "
-                "4) For any changes with severity high or critical, analyze them and send alerts. "
-                "5) Use format_slack.py to format alerts."
+                "3) Run detect_changes.py --all --analyze --alert to detect changes, "
+                "generate deep insights with Tavily news enrichment, save analyses, "
+                "and send rich Slack alerts automatically. "
+                "The --analyze flag triggers the full deep analysis pipeline (LLM + Tavily). "
+                "The --alert flag sends rich formatted Slack alerts with market intelligence."
             ),
             "command": (
                 f'openclaw cron add --name "competitor-hourly-scrape" '
@@ -57,9 +59,8 @@ def build_cron_jobs(
                 f'--message "Run the competitor-monitoring skill: '
                 f'1) List all sources with schedule_group=hourly. '
                 f'2) Scrape each one using scrape.py. '
-                f'3) Run detect_changes.py --all to find changes. '
-                f'4) For any high/critical changes, analyze them and send alerts. '
-                f'5) Use format_slack.py to format alerts."'
+                f'3) Run detect_changes.py --all --analyze --alert '
+                f'(detects changes, runs deep analysis with Tavily news, sends rich Slack alerts)."'
                 f'{delivery_args}'
             ),
         },
@@ -71,15 +72,13 @@ def build_cron_jobs(
                 "Run the competitor-monitoring skill — FULL DAILY RUN: "
                 "1) Run manage_sources.py list to get all active sources. "
                 "2) Scrape ALL sources using scrape.py. "
-                "3) Run detect_changes.py --all. "
-                "4) For every detected change, analyze it following the analysis template. "
-                "5) Save each analysis using save_analysis.py. "
-                "6) Send alerts for medium+ severity changes via format_slack.py --send. "
-                "7) Run detect_partnerships.py --all --save. "
-                "8) Run news_search.py --all to proactively search for competitor news via Tavily. "
-                "9) For any high/critical changes, run investigate.py --change-id <id> for deep investigation. "
-                "10) Knowledge base is auto-updated by the pipeline. "
-                "11) LLM-enhanced insights are generated automatically if OPENAI_API_KEY is set."
+                "3) Run detect_changes.py --all --analyze --alert to detect changes, "
+                "run deep analysis pipeline (LLM + Tavily news enrichment), save analyses to DB, "
+                "and send rich Slack alerts with market intelligence. "
+                "4) Run detect_partnerships.py --all --save. "
+                "5) Run news_search.py --all to proactively search for competitor news via Tavily. "
+                "6) For any high/critical changes, run investigate.py --change-id <id> for deep investigation. "
+                "7) Knowledge base is auto-updated by the pipeline."
             ),
             "command": (
                 f'openclaw cron add --name "competitor-daily-monitor" '
@@ -87,14 +86,12 @@ def build_cron_jobs(
                 f'--session isolated '
                 f'--message "Run the competitor-monitoring skill — FULL DAILY RUN: '
                 f'1) List and scrape ALL active sources. '
-                f'2) Run detect_changes.py --all. '
-                f'3) Analyze every detected change following the analysis template. '
-                f'4) Save analyses with save_analysis.py. '
-                f'5) Alert on medium+ severity via format_slack.py --send. '
-                f'6) Run detect_partnerships.py --all --save. '
-                f'7) Run news_search.py --all for proactive news search. '
-                f'8) For high/critical changes, run investigate.py --change-id <id>. '
-                f'9) Update competitor knowledge base."'
+                f'2) Run detect_changes.py --all --analyze --alert '
+                f'(detects changes, deep analysis with Tavily, saves analyses, rich Slack alerts). '
+                f'3) Run detect_partnerships.py --all --save. '
+                f'4) Run news_search.py --all for proactive news search. '
+                f'5) For high/critical changes, run investigate.py --change-id <id>. '
+                f'6) Update competitor knowledge base."'
                 f'{delivery_args}'
             ),
         },

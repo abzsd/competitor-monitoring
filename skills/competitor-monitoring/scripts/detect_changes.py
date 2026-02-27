@@ -87,6 +87,8 @@ def classify_change_type(source_doc: dict, text_diff: str) -> ChangeType:
         return ChangeType.PARTNERSHIP_NEW
     if page_type == "product":
         return ChangeType.PRODUCT_UPDATE
+    if page_type in ("blog", "careers", "about", "news"):
+        return ChangeType.CONTENT_UPDATE
 
     # For other page types, classify based on diff content
     diff_lower = text_diff.lower()
@@ -455,7 +457,10 @@ def _run_pipeline(results: list[dict], analyze: bool, alert: bool, no_llm: bool)
                         for a in insights.get("actions", [])
                     ),
                     "key_facts": insights.get("before_after_details", [])[:10],
-                    "sources_cited": [data["source"].get("url", "")] if data["source"].get("url") else [],
+                    "sources_cited": (
+                        [data["source"].get("url", "")] if data["source"].get("url") else []
+                    ) + [n.get("url", "") for n in insights.get("news_context", [])[:3] if n.get("url")],
+                    "news_context": insights.get("news_context", []),
                     "risk_level": change.get("severity", "medium"),
                 },
                 "created_at": now,

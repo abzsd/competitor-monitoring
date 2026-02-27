@@ -1114,8 +1114,75 @@ def update_knowledge_base(competitor_name: str, insights: dict, change: dict) ->
 # MAIN ROUTER
 # ===================================================================
 
+def _enrich_with_news(insights: dict, change: dict) -> dict:
+    """Search Tavily for related news and add market context to insights."""
+    try:
+        tavily_key = os.environ.get("TAVILY_API_KEY", "")
+        if not tavily_key:
+            return insights
+
+        from tavily import TavilyClient
+        tavily = TavilyClient(api_key=tavily_key)
+
+        competitor = change.get("competitor", "")
+        change_type = change.get("change_type", "")
+
+        # Build a targeted search query based on the change type
+        query_map = {
+            "pricing_change": f'"{competitor}" pricing OR price change OR subscription',
+            "product_update": f'"{competitor}" product launch OR new feature OR AI',
+            "partnership_new": f'"{competitor}" partnership OR acquisition OR collaboration',
+            "content_update": f'"{competitor}" news OR announcement',
+        }
+        query = query_map.get(change_type, f'"{competitor}" news')
+
+        response = tavily.search(query=query, search_depth="basic", max_results=5, days=14)
+        results = response.get("results", [])
+
+        if not results:
+            return insights
+
+        # Build news context
+        news_items = []
+        for r in results[:5]:
+            from urllib.parse import urlparse
+            domain = urlparse(r.get("url", "")).netloc.replace("www.", "")
+            news_items.append({
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "source": domain,
+                "snippet": (r.get("content", "") or "")[:200],
+            })
+
+        insights["news_context"] = news_items
+
+        # Add news-backed impact details
+        news_titles = [n["title"] for n in news_items if n["title"]]
+        if news_titles:
+            insights.setdefault("impact_details", [])
+            insights["impact_details"].append(
+                f"Market coverage: {len(news_titles)} recent news article(s) found about this competitor"
+            )
+
+        # Add news signals
+        insights.setdefault("signals", [])
+        for n in news_items[:3]:
+            title_lower = n["title"].lower()
+            if any(w in title_lower for w in ["funding", "raise", "series", "valuation", "ipo"]):
+                insights["signals"].append({"type": "funding", "detail": f"News: {n['title'][:120]}"})
+            elif any(w in title_lower for w in ["acquire", "merger", "acquisition"]):
+                insights["signals"].append({"type": "acquisition", "detail": f"News: {n['title'][:120]}"})
+            elif any(w in title_lower for w in ["partner", "integration", "alliance"]):
+                insights["signals"].append({"type": "partnership", "detail": f"News: {n['title'][:120]}"})
+
+    except Exception as e:
+        print(f"[generate_insights] Tavily enrichment failed: {e}", file=sys.stderr)
+
+    return insights
+
+
 def generate_insights(change: dict, old_snapshot: dict, new_snapshot: dict, source: dict) -> dict:
-    """Route to the appropriate analyzer based on change type, then enhance with LLM."""
+    """Route to the appropriate analyzer based on change type, then enhance with LLM and news."""
     ct = change.get("change_type", "content_update")
     if ct == "pricing_change":
         insights = analyze_pricing_change(change, old_snapshot, new_snapshot, source)
@@ -1126,7 +1193,10 @@ def generate_insights(change: dict, old_snapshot: dict, new_snapshot: dict, sour
     else:
         insights = analyze_content_change(change, old_snapshot, new_snapshot, source)
 
-    # Enhance with LLM if available
+    # Enrich with Tavily news search for market context
+    insights = _enrich_with_news(insights, change)
+
+    # Enhance with LLM if available (now with news context included)
     insights = enhance_with_llm(insights, change, old_snapshot, new_snapshot, source)
 
     return insights
