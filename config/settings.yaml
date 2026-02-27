@@ -2,27 +2,27 @@
 # Edit this file to add/modify competitors and their monitored sources.
 
 competitors:
-  # Test competitor — deployed on Render
+  # Test competitor — local mock site
   - name: "TestRival"
     slug: "testrival"
-    domain: "testrival-mock.onrender.com"
+    domain: "localhost:8888"
     industry: "project-management"
     description: "Mock competitor for testing the monitoring pipeline"
     tags: ["pm", "saas", "ai"]
     sources:
-      - url: "https://testrival-mock.onrender.com/pricing"
+      - url: "http://localhost:8888/pricing"
         page_type: "pricing"
         scrape_method: "static"
         schedule_group: "hourly"
-      - url: "https://testrival-mock.onrender.com/product"
+      - url: "http://localhost:8888/product"
         page_type: "product"
         scrape_method: "static"
         schedule_group: "daily"
-      - url: "https://testrival-mock.onrender.com/partners"
+      - url: "http://localhost:8888/partners"
         page_type: "partnerships"
         scrape_method: "static"
         schedule_group: "daily"
-      - url: "https://testrival-mock.onrender.com/blog"
+      - url: "http://localhost:8888/blog"
         page_type: "blog"
         scrape_method: "static"
         schedule_group: "daily"

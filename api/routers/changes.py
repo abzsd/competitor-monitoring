@@ -14,45 +14,110 @@ from api.schemas import ChangeDetailOut, ChangeOut, PaginatedResponse
 router = APIRouter(prefix="/changes", tags=["changes"])
 
 
+def _extract_prices(text: str) -> list[str]:
+    """Pull dollar amounts from a string."""
+    return re.findall(r"\$[\d,]+(?:\.\d{2})?(?:/\w+)?", text)
+
+
 def _humanize_summary(doc: dict) -> str:
-    """Generate a human-readable summary from structured_diff if the existing summary is technical."""
+    """Generate a concise, human-readable summary from structured_diff."""
     summary = doc.get("summary", "")
-    # If summary already looks human-readable (doesn't have the old "+N/-N lines changed" pattern), keep it
+    # If summary already looks human-readable, keep it
     if "+/" not in summary and "lines changed" not in summary:
         return summary
 
     sdiff = doc.get("structured_diff") or {}
     change_type = doc.get("change_type", "")
-    diff_text = doc.get("text_diff", "")
-    added_lines = [l[1:].strip() for l in diff_text.splitlines() if l.startswith("+") and not l.startswith("+++") and l[1:].strip()] if diff_text else []
+    changed = sdiff.get("changed") or []
+    added = sdiff.get("added") or []
+    removed = sdiff.get("removed") or []
 
-    highlights = []
-    for item in (sdiff.get("changed") or [])[:4]:
-        old_v = str(item.get("old_value", ""))
-        new_v = str(item.get("new_value", ""))
-        path = str(item.get("path", ""))
-        parts = [p.strip("'\"") for p in re.findall(r"\['([^']+)'\]", path)]
-        field = " > ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
-        if old_v and new_v and field:
-            highlights.append(f"{field}: {old_v} → {new_v}")
+    # ── Pricing changes: extract price numbers ──
+    if change_type == "pricing_change":
+        price_shifts = []
+        for item in changed:
+            old_v = str(item.get("old_value", ""))
+            new_v = str(item.get("new_value", ""))
+            old_prices = _extract_prices(old_v)
+            new_prices = _extract_prices(new_v)
+            if old_prices and new_prices and old_prices[0] != new_prices[0]:
+                price_shifts.append(f"{old_prices[0]} → {new_prices[0]}")
+        new_features = [str(a.get("value", ""))[:60] for a in added if "feature" in str(a.get("path", "")).lower()]
+        parts = []
+        if price_shifts:
+            parts.append(f"Prices changed: {', '.join(price_shifts[:3])}")
+        if new_features:
+            parts.append(f"{len(new_features)} new feature(s) added")
+        if removed:
+            parts.append(f"{len(removed)} item(s) removed")
+        if parts:
+            return f"Pricing update — {'. '.join(parts)}"
+        return f"Pricing page updated ({len(changed)} changes, {len(added)} additions)"
 
-    if change_type == "pricing_change" and highlights:
-        return f"Pricing updated — {'; '.join(highlights[:3])}"
+    # ── Product updates: look for new headings/features ──
     if change_type == "product_update":
-        key = [l for l in added_lines if any(kw in l.lower() for kw in ["feature", "introducing", "new", "launch", "now"])]
-        if key:
-            return f"Product update — {key[0][:120]}"
-        if highlights:
-            return f"Product update — {'; '.join(highlights[:2])}"
-    if change_type == "partnership_new":
-        partners = [l for l in added_lines if any(kw in l.lower() for kw in ["partner", "integration", "collaborat"])]
-        if partners:
-            return f"New partnership — {partners[0][:120]}"
-    if highlights:
-        return f"Update — {'; '.join(highlights[:3])}"
-    interesting = [l for l in added_lines if len(l) > 20 and not l.startswith(("<", "{"))]
-    if interesting:
-        return f"Content updated — {interesting[0][:120]}"
+        new_headings = []
+        for a in added:
+            val = str(a.get("value", ""))
+            path = str(a.get("path", ""))
+            if "heading" in path.lower():
+                # Extract text from dict-like string
+                m = re.search(r"'text':\s*'([^']+)'", val)
+                if m:
+                    new_headings.append(m.group(1))
+        changed_headings = []
+        for item in changed:
+            path = str(item.get("path", ""))
+            if "heading" in path.lower() or "text" in path.lower():
+                new_v = str(item.get("new_value", ""))
+                if len(new_v) < 80:
+                    changed_headings.append(new_v)
+        if new_headings:
+            return f"Product update — New sections: {', '.join(new_headings[:3])}"
+        if changed_headings:
+            return f"Product update — {changed_headings[0]}"
+        return f"Product page updated ({len(changed)} changes, {len(added)} additions)"
+
+    # ── Partnership/blog: look for new headings and partner names ──
+    if change_type in ("partnership_new", "content_update"):
+        new_headings = []
+        for a in added:
+            val = str(a.get("value", ""))
+            path = str(a.get("path", ""))
+            if "heading" in path.lower():
+                m = re.search(r"'text':\s*'([^']+)'", val)
+                if m:
+                    new_headings.append(m.group(1))
+        changed_headings = []
+        for item in changed:
+            path = str(item.get("path", ""))
+            if "heading" in path.lower() or "text" in path.lower():
+                new_v = str(item.get("new_value", ""))
+                if 10 < len(new_v) < 100:
+                    changed_headings.append(new_v)
+        label = "New partnership" if change_type == "partnership_new" else "Content update"
+        if new_headings:
+            return f"{label} — {'; '.join(new_headings[:2])}"
+        if changed_headings:
+            return f"{label} — {changed_headings[0]}"
+        return f"{label} ({len(changed)} changes, {len(added)} additions)"
+
+    # ── Page added/removed ──
+    if change_type == "page_added":
+        return "New page discovered and added to monitoring"
+    if change_type == "page_removed":
+        return "Page was removed or is no longer accessible"
+
+    # ── Generic fallback: short counts ──
+    parts = []
+    if changed:
+        parts.append(f"{len(changed)} field(s) changed")
+    if added:
+        parts.append(f"{len(added)} item(s) added")
+    if removed:
+        parts.append(f"{len(removed)} item(s) removed")
+    if parts:
+        return f"Update detected — {', '.join(parts)}"
 
     return summary
 

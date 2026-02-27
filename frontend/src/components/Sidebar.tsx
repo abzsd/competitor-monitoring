@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 
 const links = [
-  { to: '/', label: 'Dashboard', icon: '⊞' },
+  { to: '/dashboard', label: 'Dashboard', icon: '⊞' },
   { to: '/competitors', label: 'Competitors', icon: '⊕' },
   { to: '/sources', label: 'Sources', icon: '◎' },
   { to: '/changes', label: 'Changes', icon: '△' },
@@ -20,7 +20,7 @@ export default function Sidebar() {
           <NavLink
             key={l.to}
             to={l.to}
-            end={l.to === '/'}
+            end={l.to === '/dashboard'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
