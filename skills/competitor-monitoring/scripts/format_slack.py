@@ -73,6 +73,88 @@ def _fields_section(fields: list[tuple[str, str]]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Path & value humanizers — turn raw JSON paths into plain English
+# ---------------------------------------------------------------------------
+
+_PATH_LABELS = {
+    "headings": "Heading",
+    "sections": "Section",
+    "features": "Feature",
+    "stats": "Statistic",
+    "links": "Link",
+    "meta": "Page Info",
+    "images": "Image",
+    "buttons": "Button",
+    "navigation": "Navigation",
+    "pricing": "Pricing",
+    "plans": "Plan",
+    "testimonials": "Testimonial",
+}
+
+
+def _humanize_path(path: str) -> str:
+    """Convert root['sections'][3]['summary'] → 'Section summary'."""
+    import re
+    # Extract component names from the path
+    parts = re.findall(r"\['?(\w+)'?\]", path)
+    if not parts:
+        return "Content"
+
+    # Skip 'root' prefix
+    parts = [p for p in parts if p != "root"]
+    if not parts:
+        return "Content"
+
+    # Map first meaningful part to a readable label
+    label = _PATH_LABELS.get(parts[0], parts[0].replace("_", " ").title())
+
+    # If there's a sub-field like 'text', 'summary', 'heading', append it
+    sub_fields = [p for p in parts[1:] if not p.isdigit()]
+    if sub_fields:
+        last = sub_fields[-1].replace("_", " ")
+        if last not in label.lower():
+            label = f"{label} {last}"
+
+    return label
+
+
+def _clean_summary(summary: str) -> str:
+    """Remove raw path references from summaries (e.g. 'sections > summary: ...')."""
+    import re
+    # Remove field prefixes like "sections > summary: " or "headings > text: "
+    cleaned = re.sub(r"\b\w+ > \w+:\s*", "", summary)
+    # Collapse multiple semicolons into a cleaner separator
+    cleaned = re.sub(r"\s*;\s*", ". ", cleaned)
+    # Remove duplicate periods
+    cleaned = re.sub(r"\.{2,}", ".", cleaned)
+    return cleaned.strip()
+
+
+def _humanize_value(val) -> str:
+    """Clean up raw values — extract text from dict-like strings."""
+    s = str(val).strip()
+    # Handle stringified dicts like "{'level': 'h3', 'text': '12'}"
+    if s.startswith("{") and "'text'" in s:
+        import re
+        m = re.search(r"'text'\s*:\s*'([^']*)'", s)
+        if m:
+            return m.group(1)
+    if s.startswith("{") and "'value'" in s:
+        import re
+        m = re.search(r"'value'\s*:\s*'([^']*)'", s)
+        if m:
+            extracted = m.group(1)
+            ctx = re.search(r"'context'\s*:\s*'([^']*)'", s)
+            if ctx:
+                return f"{extracted} ({ctx.group(1)})"
+            return extracted
+    # Truncate long values
+    if len(s) > 120:
+        return s[:117] + "..."
+    return s
+
+
+# ---------------------------------------------------------------------------
 # Change alert formatting
 # ---------------------------------------------------------------------------
 
@@ -95,30 +177,20 @@ def format_change_alert(change: dict) -> dict:
             (":clock1:  Detected", str(change.get("detected_at", "N/A"))[:19]),
         ]),
         _divider_block(),
-        _section_block(f":memo:  *Summary*\n\n{change.get('summary', 'No summary available')}"),
+        _section_block(f":memo:  *Summary*\n\n{_clean_summary(change.get('summary', 'No summary available'))}"),
     ]
 
-    # Add diff preview (truncated)
-    diff = change.get("text_diff", "")
-    if diff:
-        diff_lines = [
-            l for l in diff.splitlines()
-            if l.startswith("+") or l.startswith("-")
-        ][:10]
-        if diff_lines:
-            diff_preview = "\n".join(diff_lines)
-            blocks.append(_section_block(" "))
-            blocks.append(_section_block(f":mag:  *Diff Preview*\n\n```{diff_preview}```"))
-
-    # Structured diff highlights
+    # Structured diff highlights — human-readable
     struct_diff = change.get("structured_diff", {})
     if struct_diff.get("changed"):
         blocks.append(_divider_block())
-        changes_text = "\n\n".join(
-            f"    :arrow_right:  `{c['path']}`\n         {c.get('old_value', '?')}  →  {c.get('new_value', '?')}"
-            for c in struct_diff["changed"][:5]
-        )
-        blocks.append(_section_block(f":pushpin:  *Key Changes*\n\n{changes_text}"))
+        changes_text = ":pushpin:  *Key Changes*\n"
+        for c in struct_diff["changed"][:6]:
+            label = _humanize_path(c.get("path", ""))
+            old_v = _humanize_value(c.get("old_value", ""))
+            new_v = _humanize_value(c.get("new_value", ""))
+            changes_text += f"\n>  :small_blue_diamond:  *{label}*\n>  _{old_v}_  →  *{new_v}*\n"
+        blocks.append(_section_block(changes_text))
 
     blocks.append(_section_block(" "))
     blocks.append(_divider_block())

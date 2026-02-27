@@ -219,13 +219,10 @@ def generate_summary(change_type: ChangeType, text_diff: str, source_doc: dict, 
     highlights = []
     if structured_diff and structured_diff.get("changed"):
         for item in structured_diff["changed"][:5]:
-            old_v = str(item.get("old_value", ""))
-            new_v = str(item.get("new_value", ""))
-            path = str(item.get("path", ""))
-            parts = [p.strip("'\"") for p in re.findall(r"\['([^']+)'\]", path)]
-            field = " > ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
-            if old_v and new_v and field:
-                highlights.append(f"{field}: {old_v} → {new_v}")
+            old_v = str(item.get("old_value", ""))[:80]
+            new_v = str(item.get("new_value", ""))[:80]
+            if old_v and new_v:
+                highlights.append(f"{old_v} → {new_v}")
 
     if structured_diff and structured_diff.get("added"):
         for item in structured_diff["added"][:3]:
@@ -410,6 +407,82 @@ def format_change_for_agent(change: dict, source_doc: dict | None = None) -> dic
 
 
 # ---------------------------------------------------------------------------
+# Auto-analyze + alert pipeline
+# ---------------------------------------------------------------------------
+
+def _run_pipeline(results: list[dict], analyze: bool, alert: bool, no_llm: bool) -> list[dict]:
+    """For each detected change, optionally generate insights, save analysis, and send rich Slack alert."""
+    if not analyze and not alert:
+        return results
+
+    from generate_insights import generate_insights, set_llm_enabled
+    from format_slack import format_change_alert, format_change_alert_rich, send_to_slack
+
+    if no_llm:
+        set_llm_enabled(False)
+
+    output = []
+    for change in results:
+        source_doc = db.get_source_by_id(change["source_id"]) if change.get("source_id") else None
+        data = format_change_for_insights(change, source_doc)
+
+        # Generate deep insights
+        insights = generate_insights(
+            data["change"], data["old_snapshot"], data["new_snapshot"], data["source"]
+        )
+
+        # Save as analysis to DB (visible on dashboard)
+        if analyze:
+            now = datetime.now(timezone.utc)
+            analysis_doc = {
+                "_id": str(__import__("bson").ObjectId()),
+                "change_id": change["_id"],
+                "competitor_id": change.get("competitor_id", ""),
+                "analysis_type": "deep_analysis",
+                "generated_at": now,
+                "content": {
+                    "summary": insights.get("before_after_summary", ""),
+                    "impact_assessment": insights.get("impact_headline", ""),
+                    "actionable_insights": [a.get("action", "") for a in insights.get("actions", [])],
+                    "category": change.get("change_type", "content_update"),
+                    "confidence": insights.get("llm_confidence", 0.8),
+                    # Investigation-style fields for rich dashboard display
+                    "what_happened": insights.get("before_after_summary", ""),
+                    "why_it_matters": insights.get("impact_headline", ""),
+                    "market_context": insights.get("strategic_context", ""),
+                    "recommended_response": "\n".join(
+                        f"[{a.get('priority', 'medium').upper()}] {a.get('action', '')} — {a.get('team', '')}"
+                        for a in insights.get("actions", [])
+                    ),
+                    "key_facts": insights.get("before_after_details", [])[:10],
+                    "sources_cited": [data["source"].get("url", "")] if data["source"].get("url") else [],
+                    "risk_level": change.get("severity", "medium"),
+                },
+                "created_at": now,
+            }
+            db.save_analysis(analysis_doc)
+            db.mark_change_analyzed(change["_id"], analysis_doc["_id"])
+            print(f"  [analysis] Saved analysis {analysis_doc['_id']} for change {change['_id']}", file=sys.stderr)
+
+        # Send rich Slack alert
+        if alert:
+            payload = format_change_alert_rich(data["change"], insights)
+            result = send_to_slack(payload)
+            if result.get("status") == "sent":
+                db.mark_change_alerted(change["_id"])
+                print(f"  [alert] Sent rich Slack alert for {change['change_type']} ({change['severity']})", file=sys.stderr)
+            else:
+                print(f"  [alert] Failed to send: {result.get('error', 'unknown')}", file=sys.stderr)
+
+        output.append({
+            "change": format_change_for_agent(change, source_doc),
+            "insights": insights,
+        })
+
+    return output
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -421,6 +494,12 @@ def main():
     group.add_argument("--source-id", help="Single source ID")
     parser.add_argument("--with-snapshots", action="store_true",
                         help="Include full snapshot data for insights generation")
+    parser.add_argument("--analyze", action="store_true",
+                        help="Auto-generate deep insights and save analysis to DB")
+    parser.add_argument("--alert", action="store_true",
+                        help="Auto-send rich Slack alerts with deep analysis")
+    parser.add_argument("--no-llm", action="store_true",
+                        help="Disable LLM enhancement (rule-based analysis only)")
     args = parser.parse_args()
 
     try:
@@ -440,17 +519,23 @@ def main():
         else:  # --all
             results = detect_all()
 
-        # Format for agent consumption
-        output = []
-        formatter = format_change_for_insights if args.with_snapshots else format_change_for_agent
-        for change in results:
-            source_doc = db.get_source_by_id(change["source_id"]) if change.get("source_id") else None
-            output.append(formatter(change, source_doc))
-
-        print(json.dumps(output, indent=2, default=str))
-
-        if not output:
+        if not results:
             print("No changes detected.", file=sys.stderr)
+            print(json.dumps([]))
+            return
+
+        # If --analyze or --alert, run the full pipeline
+        if args.analyze or args.alert:
+            output = _run_pipeline(results, args.analyze, args.alert, args.no_llm)
+            print(json.dumps(output, indent=2, default=str))
+        else:
+            # Legacy: just format for agent consumption
+            formatter = format_change_for_insights if args.with_snapshots else format_change_for_agent
+            output = []
+            for change in results:
+                source_doc = db.get_source_by_id(change["source_id"]) if change.get("source_id") else None
+                output.append(formatter(change, source_doc))
+            print(json.dumps(output, indent=2, default=str))
 
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
